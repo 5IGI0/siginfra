@@ -1,0 +1,88 @@
+version: "3.9"
+services:
+  postgres:
+    image: docker.io/library/postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:14
+    restart: unless-stopped
+    environment:
+      RUN_MODE: prod
+      FORGEJO____APP_NAME: 5IGIT
+      FORGEJO__repository__DEFAULT_PRIVATE: private
+      FORGEJO__database__DB_TYPE: ${FORGEJO_DB_TYPE}
+      FORGEJO__database__HOST: ${FORGEJO_DB_HOST}
+      FORGEJO__database__NAME: ${FORGEJO_DB_NAME}
+      FORGEJO__database__USER: ${FORGEJO_DB_USER}
+      FORGEJO__database__PASSWD: ${FORGEJO_DB_PASSWD}
+      FORGEJO__database__SCHEMA: public
+      FORGEJO__badges__ENABLED: "false" # Information leaks using third-party services, so disable by default
+      FORGEJO__badges__GENERATOR_URL_TEMPLATE: "https://127.0.0.1:0/{{.label}}-{{.text}}-{{.color}}"
+      FORGEJO__server__PROTOCOL: http
+      FORGEJO__server__DOMAIN: git.${HOST}
+      FORGEJO__server__ROOT_URL: http://git.${HOST}/
+      FORGEJO__server__HTTP_PORT: 3000
+      FORGEJO__server__SSH_PORT: 2222
+      FORGEJO__server__SSH_LISTEN_PORT: 2222
+      FORGEJO__server__OFFLINE_MODE: "true"
+      FORGEJO__server__LANDING_PAGE: login
+      FORGEJO__security__INSTALL_LOCK: "true"
+      FORGRJO__openid__ENABLE_OPENID_SIGNIN: "false"
+      FORGEJO_ADMIN_USERNAME: ${FORGEJO_ADMIN_USERNAME}
+      FORGEJO_ADMIN_PASSWORD: ${FORGEJO_ADMIN_PASSWORD}
+      FORGEJO_ADMIN_EMAIL: ${FORGEJO_ADMIN_EMAIL}
+      FORGEJO_SHARED_SECRET: ${FORGEJO_SHARED_SECRET}
+    volumes:
+      - ./data/forgejo:/data/
+      - ./assets/forgejo_setup.sh:/usr/local/bin/gitea:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  forgejo_runner:
+    image: code.forgejo.org/forgejo/runner:12
+    restart: unless-stopped
+    environment:
+      RUN_MODE: prod
+      DOCKER_HOST: unix:///var/run/docker.sock
+      FORGEJO_RUNNER__server__ROOT_URL: http://forgejo:3000/
+      FORGEJO_RUNNER__server__SSH_PORT: 2222
+      FORGEJO_RUNNER__server__OFFLINE_MODE: "true"
+      FORGEJO_RUNNER__security__INSTALL_LOCK: "true"
+      FORGEJO_SHARED_SECRET: ${FORGEJO_SHARED_SECRET}
+    command:
+      - /bin/sh
+      - -ce
+      - |
+        while : ; do
+          forgejo-runner create-runner-file --connect --instance http://forgejo:3000 --name runner --secret ${FORGEJO_SHARED_SECRET} && break ;
+          sleep 1 ;
+        done ;
+        forgejo-runner generate-config > config.yml
+        sed -i 's|  level: info|  level: debug|g' config.yml
+        sed -i -e "s|\"labels\": \[\]|\"labels\": [\"docker-cli:docker://code.forgejo.org/oci/docker:cli\",\"node-bookworm:docker://code.forgejo.org/oci/node:20-bookworm\"]|" .runner ;
+        forgejo-runner daemon
+    volumes:
+      - ${PODMAN_SOCKET}:/var/run/docker.sock
+
+  nginx:
+    image: docker.io/library/nginx:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - forgejo

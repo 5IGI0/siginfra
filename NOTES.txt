@@ -1,0 +1,3 @@
+podman unshare <cmd> # executer une commande avec l'utilisateur du volume
+
+pk j'ai une erreur 'database "admin" does not exist' ??
