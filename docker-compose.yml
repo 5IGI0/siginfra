@@ -51,12 +51,18 @@ services:
       postgres:
         condition: service_healthy
 
+  podman:
+    image: alpine:latest
+    restart: unless-stopped
+    privileged: true
+    command: ["sh", "-c", "apk add --no-cache podman iptables; podman system service --time=0 tcp:0.0.0.0:5656"]
+
   forgejo_runner:
     image: code.forgejo.org/forgejo/runner:12
     restart: unless-stopped
     environment:
       RUN_MODE: prod
-      DOCKER_HOST: unix:///var/run/docker.sock
+      DOCKER_HOST: tcp://podman:5656
       FORGEJO_RUNNER__server__ROOT_URL: http://forgejo:3000/
       FORGEJO_RUNNER__server__SSH_PORT: 2222
       FORGEJO_RUNNER__server__OFFLINE_MODE: "true"
@@ -74,8 +80,6 @@ services:
         sed -i 's|  level: info|  level: debug|g' config.yml
         sed -i -e "s|\"labels\": \[\]|\"labels\": [\"docker-cli:docker://code.forgejo.org/oci/docker:cli\",\"node-bookworm:docker://code.forgejo.org/oci/node:20-bookworm\"]|" .runner ;
         forgejo-runner daemon
-    volumes:
-      - ${PODMAN_SOCKET}:/var/run/docker.sock
 
   nginx:
     image: docker.io/library/nginx:latest
