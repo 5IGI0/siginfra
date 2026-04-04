@@ -1,0 +1,1 @@
+[WIP] rootless podman-based self-hosted development infrastructure (git, actions, SSO, ...)
