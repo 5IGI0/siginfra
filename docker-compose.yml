@@ -6,9 +6,15 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      KEYCLOAK_DB_NAME: ${KEYCLOAK_DB_NAME:-keycloak}
+      KEYCLOAK_DB_USER: ${KEYCLOAK_DB_USER:-keycloak}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak}
+      FORGEJO_DB_NAME: ${FORGEJO_DB_NAME:-forgejo}
+      FORGEJO_DB_USER: ${FORGEJO_DB_USER:-forgejo}
+      FORGEJO_DB_PASSWD: ${FORGEJO_DB_PASSWD:-forgejo}
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
+      - ./assets/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
@@ -22,11 +28,11 @@ services:
       RUN_MODE: prod
       FORGEJO____APP_NAME: 5IGIT
       FORGEJO__repository__DEFAULT_PRIVATE: private
-      FORGEJO__database__DB_TYPE: ${FORGEJO_DB_TYPE}
-      FORGEJO__database__HOST: ${FORGEJO_DB_HOST}
-      FORGEJO__database__NAME: ${FORGEJO_DB_NAME}
-      FORGEJO__database__USER: ${FORGEJO_DB_USER}
-      FORGEJO__database__PASSWD: ${FORGEJO_DB_PASSWD}
+      FORGEJO__database__DB_TYPE: ${FORGEJO_DB_TYPE:-postgres}
+      FORGEJO__database__HOST: ${FORGEJO_DB_HOST:-postgres}
+      FORGEJO__database__NAME: ${FORGEJO_DB_NAME:-forgejo}
+      FORGEJO__database__USER: ${FORGEJO_DB_USER:-forgejo}
+      FORGEJO__database__PASSWD: ${FORGEJO_DB_PASSWD:-forgejo}
       FORGEJO__database__SCHEMA: public
       FORGEJO__badges__ENABLED: "false" # Information leaks using third-party services, so disable by default
       FORGEJO__badges__GENERATOR_URL_TEMPLATE: "https://127.0.0.1:0/{{.label}}-{{.text}}-{{.color}}"
@@ -86,12 +92,26 @@ services:
     image: quay.io/keycloak/keycloak:latest
     restart: unless-stopped
     environment:
+      KC_DB: postgres
+      KC_DB_URL: "jdbc:postgresql://postgres:5432/${KEYCLOAK_DB_NAME:-keycloak}"
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak}
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY: "edge"
+      KC_PROXY_HEADERS: "xforwarded"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME: https://auth.${HOST}/
     command:
-      - start-dev
+      - start
     volumes:
       - ./data/keycloak:/opt/keycloak/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8081:8080"
 
