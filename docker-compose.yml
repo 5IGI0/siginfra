@@ -59,10 +59,11 @@ services:
         condition: service_healthy
 
   podman:
-    image: alpine:latest
+    build:
+      context: ./podman
+      dockerfile: Dockerfile
     restart: unless-stopped
     privileged: true
-    command: ["sh", "-c", "apk add --no-cache podman iptables; podman system service --time=0 tcp:0.0.0.0:5656"]
 
   forgejo_runner:
     image: code.forgejo.org/forgejo/runner:12
