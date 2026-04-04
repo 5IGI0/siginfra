@@ -39,7 +39,8 @@ services:
       FORGEJO__server__OFFLINE_MODE: "true"
       FORGEJO__server__LANDING_PAGE: login
       FORGEJO__security__INSTALL_LOCK: "true"
-      FORGRJO__openid__ENABLE_OPENID_SIGNIN: "false"
+      FORGEJO__openid__ENABLE_OPENID_SIGNIN: "false"
+      FORGEJO__service__DISABLE_REGISTRATION: "true"
       FORGEJO_ADMIN_USERNAME: ${FORGEJO_ADMIN_USERNAME}
       FORGEJO_ADMIN_PASSWORD: ${FORGEJO_ADMIN_PASSWORD}
       FORGEJO_ADMIN_EMAIL: ${FORGEJO_ADMIN_EMAIL}
@@ -81,6 +82,19 @@ services:
         sed -i -e "s|\"labels\": \[\]|\"labels\": [\"docker-cli:docker://code.forgejo.org/oci/docker:cli\",\"node-bookworm:docker://code.forgejo.org/oci/node:20-bookworm\"]|" .runner ;
         forgejo-runner daemon
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    restart: unless-stopped
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    command:
+      - start-dev
+    volumes:
+      - ./data/keycloak:/opt/keycloak/data
+    ports:
+      - "8081:8080"
+
   nginx:
     image: docker.io/library/nginx:latest
     restart: unless-stopped
@@ -90,3 +104,4 @@ services:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - forgejo
+      - keycloak
